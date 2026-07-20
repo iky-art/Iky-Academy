@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profil — Iky Academy</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .profile-head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .profile-avatar { width: 84px; height: 84px; border-radius: 18px; border: 3px solid var(--ink); background: var(--ai); color: #fff; display: flex; align-items: center; justify-content: center; font-family: var(--font-impact); font-size: 2.2rem; overflow: hidden; flex-shrink: 0; }
+  .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .discord-row { display: flex; gap: 10px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="navbar__inner">
+    <a href="index.html" class="brand">
+      <div class="brand__mark">I</div>
+      <span class="brand__name">Iky Academy</span>
+    </a>
+    <div class="navbar__right">
+      <div class="navlinks-wrap" id="navMenu">
+        <div class="navlinks">
+          <a href="index.html" class="navlink">Beranda</a>
+          <a href="leaderboard.html" class="navlink">Leaderboard</a>
+          <a href="rooms.html" class="navlink">Voice Room</a>
+          <a href="profile.html" class="navlink">Profil</a>
+        </div>
+      </div>
+      <button class="icon-btn" id="notifBtn" aria-label="Notifikasi">🔔<span class="icon-btn__dot" id="notifDot"></span></button>
+      <div class="dropdown" id="notifDropdown">
+        <div class="dropdown__head">Notifikasi</div>
+        <div id="notifList"><div class="notif-empty">Memuat...</div></div>
+      </div>
+      <button class="icon-btn" id="themeToggle" aria-label="Ganti tema">🌙</button>
+      <a href="profile.html" class="avatar" id="navAvatar">I</a>
+      <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false"><span class="nav-toggle__bar"></span></button>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap" style="padding-top:24px; padding-bottom:60px;">
+  <div class="panel panel--pad">
+    <div class="profile-head">
+      <div class="profile-avatar" id="pAvatar">I</div>
+      <div style="flex:1; min-width:200px;">
+        <h1 style="margin:0 0 4px; font-size:1.5rem;" id="pName">—</h1>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+          <span class="badge badge--gold mono" id="pLevel">Level 1</span>
+          <span class="badge mono" id="pXp">0 XP</span>
+          <span class="badge mono" id="pStreak">0🔥</span>
+        </div>
+      </div>
+      <div id="profileActions"></div>
+    </div>
+  </div>
+
+  <section class="mt-24 hidden" id="discordSection">
+    <h2 style="font-size:1.1rem;">🔗 Gabung Komunitas</h2>
+    <div class="discord-row">
+      <a href="#" target="_blank" class="btn btn--ai btn--sm">💬 Join Discord Iky Academy</a>
+      <a href="#" target="_blank" class="btn btn--ai btn--sm">💬 Join Discord Iky Store</a>
+    </div>
+    <p class="muted" style="font-size:.78rem;">*Link undangan Discord masih placeholder — ganti dengan link asli.</p>
+  </section>
+
+  <section class="mt-32">
+    <h2 style="font-size:1.1rem;">🏅 Badge</h2>
+    <div class="achv-grid mt-16" id="badgeGrid"><div class="notif-empty">Memuat...</div></div>
+  </section>
+
+  <section class="mt-32">
+    <div class="flex gap-16" style="flex-wrap:wrap;">
+      <div><span class="stat-num" style="font-size:1.4rem;color:var(--hanko);" id="followerCount">0</span> <span class="muted">Pengikut</span></div>
+      <div><span class="stat-num" style="font-size:1.4rem;color:var(--hanko);" id="followingCount">0</span> <span class="muted">Mengikuti</span></div>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+<script src="js/supabase-client.js"></script>
+<script src="js/main.js"></script>
+<script>
+(async function () {
+  const session = await requireSession("login.html");
+  if (!session) return;
+  const me = session.user;
+  const myProfile = await ensureProfile(me);
+  await initNavbar(session, myProfile);
+
+  const params = new URLSearchParams(window.location.search);
+  const viewingId = params.get("id") || me.id;
+  const isOwnProfile = viewingId === me.id;
+
+  const { data: p } = await client.from("profiles").select("*").eq("id", viewingId).single();
+  if (!p) { showToast("Profil tidak ditemukan.", "error"); return; }
+
+  document.getElementById("pName").textContent = p.display_name || "Anonim";
+  document.getElementById("pAvatar").innerHTML = p.avatar_url
+    ? `<img src="${p.avatar_url}" alt="">`
+    : (p.display_name || "I")[0].toUpperCase();
+  const level = Math.floor((p.xp || 0) / 100) + 1;
+  document.getElementById("pLevel").textContent = "Level " + level;
+  document.getElementById("pXp").textContent = (p.xp || 0) + " XP";
+  document.getElementById("pStreak").textContent = (p.streak || 0) + "🔥";
+
+  if (isOwnProfile) {
+    document.getElementById("discordSection").classList.remove("hidden");
+    document.getElementById("profileActions").innerHTML = `<button class="btn btn--ghost btn--sm" id="logoutBtn">Keluar</button>`;
+    document.getElementById("logoutBtn").addEventListener("click", signOut);
+  } else {
+    const { data: existingFollow } = await client.from("follows").select("id").eq("follower_id", me.id).eq("following_id", viewingId).maybeSingle();
+    const actionsEl = document.getElementById("profileActions");
+    function renderFollowBtn(following) {
+      actionsEl.innerHTML = following
+        ? `<button class="btn btn--ghost btn--sm" id="followBtn">✓ Mengikuti</button>`
+        : `<button class="btn btn--hanko btn--sm" id="followBtn">+ Follow</button>`;
+      document.getElementById("followBtn").addEventListener("click", async function () {
+        if (following) {
+          await client.from("follows").delete().eq("follower_id", me.id).eq("following_id", viewingId);
+          renderFollowBtn(false);
+        } else {
+          await client.from("follows").insert({ follower_id: me.id, following_id: viewingId });
+          renderFollowBtn(true);
+        }
+        loadFollowCounts();
+      });
+    }
+    renderFollowBtn(!!existingFollow);
+  }
+
+  // ----- Badges -----
+  const { data: earned } = await client.from("user_badges").select("badge_id, earned_at, badges(code, name, description, icon_url)").eq("user_id", viewingId);
+  const badgeGrid = document.getElementById("badgeGrid");
+  if (!earned || earned.length === 0) {
+    badgeGrid.innerHTML = '<div class="notif-empty">Belum ada badge yang didapat.</div>';
+  } else {
+    badgeGrid.innerHTML = earned.map(e => `
+      <div class="achv-item">
+        <div class="achv-item__icon">${e.badges?.icon_url ? `<img src="${e.badges.icon_url}" style="width:32px;">` : "🏅"}</div>
+        <div class="achv-item__name">${escapeHtml(e.badges?.name || "Badge")}</div>
+      </div>`).join("");
+  }
+
+  // ----- Follower/following counts -----
+  async function loadFollowCounts() {
+    const [{ count: followers }, { count: following }] = await Promise.all([
+      client.from("follows").select("*", { count: "exact", head: true }).eq("following_id", viewingId),
+      client.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", viewingId),
+    ]);
+    document.getElementById("followerCount").textContent = followers ?? 0;
+    document.getElementById("followingCount").textContent = following ?? 0;
+  }
+  await loadFollowCounts();
+})();
+</script>
+</body>
+</html>
