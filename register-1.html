@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daftar — Iky Academy</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
+  <div class="panel panel--pad text-center" style="max-width:400px; width:100%;">
+    <div class="brand__mark" style="margin:0 auto 16px;">I</div>
+    <h1 style="font-size:1.5rem;">Buat Akun Baru</h1>
+    <p class="muted" style="margin-bottom:20px;">Mulai kumpulkan XP hari ini.</p>
+
+    <form id="registerForm" novalidate>
+      <div class="field">
+        <label for="name">Nama Panggilan</label>
+        <input type="text" id="name" autocomplete="name" placeholder="Misal: Iky" required minlength="2">
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" placeholder="kamu@email.com" required>
+      </div>
+      <div class="field">
+        <label for="password">Kata Sandi</label>
+        <input type="password" id="password" autocomplete="new-password" placeholder="Minimal 6 karakter" required minlength="6">
+      </div>
+      <div class="field">
+        <label for="password2">Ulangi Kata Sandi</label>
+        <input type="password" id="password2" autocomplete="new-password" placeholder="Ketik ulang kata sandi" required minlength="6">
+      </div>
+      <div class="field-error" id="formError"></div>
+      <button type="submit" class="btn btn--hanko btn--full" id="submitBtn">
+        <span id="submitLabel">Daftar Sekarang</span>
+      </button>
+    </form>
+
+    <div class="auth-divider">atau</div>
+
+    <div class="flex" style="flex-direction:column; gap:10px;">
+      <button class="btn btn--ghost btn--full" id="githubBtn">
+        <img class="provider-icon" src="https://cdn.simpleicons.org/github" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';"><span class="oauth-fallback">🐙</span>
+        Daftar dengan GitHub
+      </button>
+      <button class="btn btn--ghost btn--full" id="discordBtn">
+        <img class="provider-icon" src="https://cdn.simpleicons.org/discord/5865F2" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';"><span class="oauth-fallback">💬</span>
+        Daftar dengan Discord
+      </button>
+    </div>
+
+    <p class="muted mt-16" style="font-size:.88rem;">
+      Sudah punya akun? <a href="login.html">Masuk di sini</a>
+    </p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+<script src="js/supabase-client.js"></script>
+<script>
+(async function () {
+  if (!client) {
+    document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;">⚠️ Gagal memuat koneksi database. Cek internet kamu, lalu refresh halaman.</div>';
+    return;
+  }
+  const { data: { session } } = await client.auth.getSession();
+  if (session) { window.location.href = "index.html"; return; }
+
+  const form = document.getElementById("registerForm");
+  const submitBtn = document.getElementById("submitBtn");
+  const submitLabel = document.getElementById("submitLabel");
+  const formError = document.getElementById("formError");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    formError.textContent = "";
+
+    const name = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const password2 = document.getElementById("password2").value;
+
+    if (password !== password2) {
+      formError.textContent = "Kata sandi tidak cocok.";
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitLabel.innerHTML = '<span class="spinner"></span>';
+
+    const { data, error } = await signUpWithEmail(email, password, name);
+
+    if (error) {
+      formError.textContent = formatError(error);
+      submitBtn.disabled = false;
+      submitLabel.textContent = "Daftar Sekarang";
+      return;
+    }
+
+    if (data.session && data.user) {
+      await ensureProfile(data.user);
+      showToast("Akun berhasil dibuat! Selamat datang 🎉", "success");
+      setTimeout(() => (window.location.href = "index.html"), 800);
+    } else {
+      showToast("Akun dibuat! Cek emailmu untuk konfirmasi sebelum masuk.", "success");
+      submitBtn.disabled = false;
+      submitLabel.textContent = "Daftar Sekarang";
+      setTimeout(() => (window.location.href = "login.html"), 1800);
+    }
+  });
+
+  document.getElementById("githubBtn").addEventListener("click", () => signInWithProvider("github"));
+  document.getElementById("discordBtn").addEventListener("click", () => signInWithProvider("discord"));
+})();
+</script>
+</body>
+</html>

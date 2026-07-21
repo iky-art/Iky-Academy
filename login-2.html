@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Masuk — Iky Academy</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
+  <div class="panel panel--pad text-center" style="max-width:400px; width:100%;">
+    <div class="brand__mark" style="margin:0 auto 16px;">I</div>
+    <h1 style="font-size:1.5rem;">Selamat Datang Kembali</h1>
+    <p class="muted" style="margin-bottom:20px;">Lanjutkan petualangan belajarmu.</p>
+
+    <form id="loginForm" novalidate>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" placeholder="kamu@email.com" required>
+      </div>
+      <div class="field">
+        <label for="password">Kata Sandi</label>
+        <input type="password" id="password" autocomplete="current-password" placeholder="Kata sandi kamu" required>
+      </div>
+      <div class="field-error" id="formError"></div>
+      <button type="submit" class="btn btn--hanko btn--full" id="submitBtn">
+        <span id="submitLabel">Masuk</span>
+      </button>
+    </form>
+
+    <div class="auth-divider">atau</div>
+
+    <div class="flex" style="flex-direction:column; gap:10px;">
+      <button class="btn btn--ghost btn--full" id="githubBtn">
+        <img class="provider-icon" src="https://cdn.simpleicons.org/github" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';"><span class="oauth-fallback">🐙</span>
+        Masuk dengan GitHub
+      </button>
+      <button class="btn btn--ghost btn--full" id="discordBtn">
+        <img class="provider-icon" src="https://cdn.simpleicons.org/discord/5865F2" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';"><span class="oauth-fallback">💬</span>
+        Masuk dengan Discord
+      </button>
+    </div>
+
+    <p class="muted mt-16" style="font-size:.88rem;">
+      Belum punya akun? <a href="register.html">Daftar di sini</a>
+    </p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+<script src="js/supabase-client.js"></script>
+<script>
+(async function () {
+  if (!client) {
+    document.body.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;">⚠️ Gagal memuat koneksi database. Cek internet kamu, lalu refresh halaman.</div>';
+    return;
+  }
+  const { data: { session } } = await client.auth.getSession();
+  if (session) { window.location.href = "index.html"; return; }
+
+  const form = document.getElementById("loginForm");
+  const submitBtn = document.getElementById("submitBtn");
+  const submitLabel = document.getElementById("submitLabel");
+  const formError = document.getElementById("formError");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    formError.textContent = "";
+    submitBtn.disabled = true;
+    submitLabel.innerHTML = '<span class="spinner"></span>';
+
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const { data, error } = await signInWithEmail(email, password);
+
+    if (error) {
+      formError.textContent = formatError(error);
+      submitBtn.disabled = false;
+      submitLabel.textContent = "Masuk";
+      return;
+    }
+    await ensureProfile(data.user);
+    showToast("Berhasil masuk!", "success");
+    setTimeout(() => (window.location.href = "index.html"), 400);
+  });
+
+  document.getElementById("githubBtn").addEventListener("click", () => signInWithProvider("github"));
+  document.getElementById("discordBtn").addEventListener("click", () => signInWithProvider("discord"));
+})();
+</script>
+</body>
+</html>

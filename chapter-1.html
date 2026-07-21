@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Baca Chapter — Iky Academy</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="navbar__inner">
+    <a href="index.html" class="brand">
+      <div class="brand__mark">I</div>
+      <span class="brand__name">Iky Academy</span>
+    </a>
+    <div class="navbar__right">
+      <button class="icon-btn" id="themeToggle" aria-label="Ganti tema">🌙</button>
+      <a href="index.html" class="btn btn--ghost btn--sm">← Kembali</a>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap" style="padding-top:24px; padding-bottom:80px; max-width:760px;">
+  <div id="chapterBody"><div class="notif-empty">Memuat...</div></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+<script src="js/supabase-client.js"></script>
+<script>
+(async function () {
+  const session = await requireSession("login.html");
+  if (!session) return;
+  const user = session.user;
+  const profile = await ensureProfile(user);
+  applyTheme(profile?.theme_preference || "dark");
+  document.getElementById("themeToggle").addEventListener("click", function () { toggleTheme(user.id); });
+
+  const chapterId = new URLSearchParams(window.location.search).get("id");
+  const body = document.getElementById("chapterBody");
+  if (!chapterId) { body.innerHTML = '<p class="muted">Chapter tidak ditemukan.</p>'; return; }
+
+  const { data: ch, error } = await client.from("chapters").select("*").eq("id", chapterId).single();
+  if (error || !ch) { body.innerHTML = '<p class="muted">Chapter tidak ditemukan.</p>'; return; }
+
+  const { data: prog } = await client.from("reading_progress").select("completed").eq("user_id", user.id).eq("chapter_id", chapterId).maybeSingle();
+
+  body.innerHTML = `
+    <span class="badge badge--gold mono">Vol.${ch.volume} · Ch.${ch.chapter_number} · +${ch.xp_reward} XP</span>
+    <h1 class="mt-16">${escapeHtml(ch.title)}</h1>
+    <div class="panel panel--pad mt-16" style="line-height:1.8;">
+      ${ch.content ? escapeHtml(ch.content).replace(/\n/g, "<br>") : '<span class="muted">Konten chapter ini belum diisi admin.</span>'}
+    </div>
+    <div class="mt-24" id="completeArea"></div>
+  `;
+
+  const completeArea = document.getElementById("completeArea");
+  if (prog?.completed) {
+    completeArea.innerHTML = `<span class="badge badge--ok mono">✓ Sudah kamu selesaikan</span>`;
+  } else {
+    completeArea.innerHTML = `<button class="btn btn--hanko" id="completeBtn">✓ Tandai Selesai (+${ch.xp_reward} XP)</button>`;
+    document.getElementById("completeBtn").addEventListener("click", async function () {
+      this.disabled = true;
+      const { error } = await client.from("reading_progress").upsert(
+        { user_id: user.id, chapter_id: chapterId, completed: true, completed_at: new Date().toISOString() },
+        { onConflict: "user_id,chapter_id" }
+      );
+      if (error) { showToast(formatError(error), "error"); this.disabled = false; return; }
+      showToast(`+${ch.xp_reward} XP! 🎉`, "success");
+      completeArea.innerHTML = `<span class="badge badge--ok mono">✓ Sudah kamu selesaikan</span>`;
+    });
+  }
+})();
+</script>
+</body>
+</html>
